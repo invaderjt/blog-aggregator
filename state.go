@@ -31,6 +31,7 @@ func updateState(s *state, db *sql.DB) {
 	cmds.Commands = make(map[string]func(*state, command) error)
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
 
 	input := os.Args
 	if len(input) < 2 {
@@ -120,5 +121,13 @@ func handlerRegister(s *state, cmd command) error {
 		log.Fatalln("Error setting username")
 	}
 	fmt.Printf("User %s registered and logged in\n", name)
+	return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+	err := s.Db.ResetDB(context.Background())
+	if err != nil {
+		log.Fatalln(err)
+	}
 	return nil
 }
