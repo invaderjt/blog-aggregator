@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/invaderjt/blog-aggregator/internal/config"
 	"github.com/invaderjt/blog-aggregator/internal/database"
+	"github.com/invaderjt/blog-aggregator/internal/rss"
 )
 
 func initialize() *state {
@@ -33,6 +34,7 @@ func updateState(s *state, db *sql.DB) {
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
 	cmds.register("users", handlerUsers)
+	cmds.register("agg", handlerAgg)
 
 	input := os.Args
 	if len(input) < 2 {
@@ -147,4 +149,17 @@ func handlerUsers(s *state, cmd command) error {
 	}
 	return nil
 
+}
+
+func handlerAgg(s *state, cmd command) error {
+	url := "https://www.wagslane.dev/index.xml"
+
+	data, err := rss.FetchFeed(context.Background(), url)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	fmt.Println(data)
+
+	return nil
 }
