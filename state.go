@@ -32,6 +32,7 @@ func updateState(s *state, db *sql.DB) {
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
 
 	input := os.Args
 	if len(input) < 2 {
@@ -130,4 +131,20 @@ func handlerReset(s *state, cmd command) error {
 		log.Fatalln(err)
 	}
 	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.Db.GetUsers(context.Background())
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for _, user := range users {
+		if user == s.Cfg.CurrentUserName {
+			fmt.Println(user + " (current)")
+		} else {
+			fmt.Println(user)
+		}
+	}
+	return nil
+
 }
