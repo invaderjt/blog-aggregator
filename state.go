@@ -49,7 +49,6 @@ func updateState(s *state, db *sql.DB) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(s.Cfg)
 
 }
 
@@ -90,7 +89,6 @@ func handlerLogin(s *state, cmd command) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s set as username.", user.Name)
 	return nil
 }
 
@@ -125,7 +123,6 @@ func handlerRegister(s *state, cmd command) error {
 	if err != nil {
 		log.Fatalln("Error setting username")
 	}
-	fmt.Printf("User %s registered and logged in\n", name)
 	return nil
 }
 
@@ -203,6 +200,18 @@ func handlerAddFeed(s *state, cmd command) error {
 }
 
 func handlerFeeds(s *state, cmd command) error {
-	//todo
+	feeds, err := s.Db.GetFeeds(context.Background())
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	for _, feed := range feeds {
+		name, err := s.Db.GetNameFromUUID(context.Background(), feed.UserID)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		fmt.Printf("%v | %v | %v\n", feed.Name, feed.Url, name)
+	}
 	return nil
 }

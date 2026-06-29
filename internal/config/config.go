@@ -40,7 +40,6 @@ func (c *Config) SetUser(username string) error {
 		return err
 	}
 
-	fmt.Printf("Username: %s written to file\n", username)
 	return nil
 }
 
@@ -73,6 +72,5 @@ func write(cfg Config) error {
 		fmt.Println("Error writing to file")
 		return err
 	}
-	fmt.Println("Write successful")
 	return nil
 }
