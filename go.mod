@@ -1,4 +1,4 @@
-module github.com/invaderjt/blog-aggregator
+module github.com/invaderjt/gator
 
 go 1.26.4
 

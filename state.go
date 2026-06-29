@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/invaderjt/blog-aggregator/internal/config"
-	"github.com/invaderjt/blog-aggregator/internal/database"
-	"github.com/invaderjt/blog-aggregator/internal/rss"
+	"github.com/invaderjt/gator/internal/config"
+	"github.com/invaderjt/gator/internal/database"
+	"github.com/invaderjt/gator/internal/rss"
 )
 
 func initialize() *state {
