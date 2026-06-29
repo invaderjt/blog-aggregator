@@ -34,9 +34,9 @@ func updateState(s *state, db *sql.DB) {
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
 	cmds.register("users", handlerUsers)
-	cmds.register("agg", handlerAgg)
 	cmds.register("addfeed", middlewareLoggedIn(handlerAddFeed))
 	cmds.register("feeds", handlerFeeds)
+	cmds.register("agg", handlerAgg)
 	cmds.register("follow", middlewareLoggedIn(handlerFollow))
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
@@ -160,19 +160,6 @@ func handlerUsers(s *state, cmd command) error {
 
 }
 
-func handlerAgg(s *state, cmd command) error {
-	url := "https://www.wagslane.dev/index.xml"
-
-	data, err := rss.FetchFeed(context.Background(), url)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	fmt.Println(data)
-
-	return nil
-}
-
 func handlerAddFeed(s *state, cmd command, currentUser database.User) error {
 	if len(cmd.Args) < 2 {
 		log.Fatalln("Addfeed requires name and url")
@@ -195,7 +182,7 @@ func handlerAddFeed(s *state, cmd command, currentUser database.User) error {
 		UserID:    user_id,
 	}
 
-	feed, err := s.Db.AddFeed(ctx, params)
+	_, err := s.Db.AddFeed(ctx, params)
 	if err != nil {
 		log.Fatalf("Error adding feed: %v", err)
 	}
@@ -204,8 +191,6 @@ func handlerAddFeed(s *state, cmd command, currentUser database.User) error {
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	fmt.Println(feed)
 
 	return nil
 }
@@ -295,4 +280,52 @@ func handlerUnfollow(s *state, cmd command, currentUser database.User) error {
 	}
 
 	return nil
+}
+
+func scrapeFeeds(s *state) error {
+	nextFeed, err := s.Db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		log.Fatalln("Could not fetch next feed")
+	}
+
+	params := database.MarkFeedFetchedParams{
+		ID:        nextFeed.ID,
+		UpdatedAt: time.Now(),
+	}
+	err = s.Db.MarkFeedFetched(context.Background(), params)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	url := nextFeed.Url
+
+	data, err := rss.FetchFeed(context.Background(), url)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	for _, item := range data.Channel.Item {
+		fmt.Println(item.Title)
+	}
+
+	return nil
+}
+
+func handlerAgg(s *state, cmd command) error {
+	if len(cmd.Args) < 1 {
+		log.Fatalln("Must give a fetch interval")
+	}
+
+	interval, err := time.ParseDuration(cmd.Args[0])
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	fmt.Printf("Collecting feeds every %s\n", cmd.Args[0])
+
+	ticker := time.NewTicker(interval)
+	for ; ; <-ticker.C {
+		fmt.Println("--------------------Refreshed--------------------")
+		scrapeFeeds(s)
+	}
 }
