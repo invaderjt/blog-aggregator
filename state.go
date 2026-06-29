@@ -37,6 +37,8 @@ func updateState(s *state, db *sql.DB) {
 	cmds.register("agg", handlerAgg)
 	cmds.register("addfeed", handlerAddFeed)
 	cmds.register("feeds", handlerFeeds)
+	cmds.register("follow", handlerFollow)
+	cmds.register("following", handlerFollowing)
 
 	input := os.Args
 	if len(input) < 2 {
@@ -193,6 +195,8 @@ func handlerAddFeed(s *state, cmd command) error {
 	if err != nil {
 		log.Fatalf("Error adding feed: %v", err)
 	}
+	cmd.Args[0] = cmd.Args[1]
+	err = handlerFollow(s, cmd)
 
 	fmt.Println(feed)
 
@@ -213,5 +217,62 @@ func handlerFeeds(s *state, cmd command) error {
 
 		fmt.Printf("%v | %v | %v\n", feed.Name, feed.Url, name)
 	}
+	return nil
+}
+
+func handlerFollow(s *state, cmd command) error {
+	if len(cmd.Args) < 1 {
+		log.Fatalln("Follow requires url argument")
+	}
+	currentUser, err := s.Db.GetUser(context.Background(), s.Cfg.CurrentUserName)
+	if err != nil {
+		log.Fatalln("Invalid current user")
+	}
+
+	desiredFeed, err := s.Db.GetFeedFromURL(context.Background(), cmd.Args[0])
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	ctx := context.Background()
+	uuid := uuid.New()
+	created_at := time.Now()
+	updated_at := created_at
+	user_id := currentUser.ID
+	feed_id := desiredFeed.ID
+
+	params := database.CreateFeedFollowParams{
+		ID:        uuid,
+		CreatedAt: created_at,
+		UpdatedAt: updated_at,
+		UserID:    user_id,
+		FeedID:    feed_id,
+	}
+
+	_, err = s.Db.CreateFeedFollow(ctx, params)
+	if err != nil {
+		log.Fatalf("Could not follow %s\n", desiredFeed.Name)
+	}
+
+	fmt.Printf("%v is now following %v\n", currentUser.Name, desiredFeed.Name)
+	return nil
+}
+
+func handlerFollowing(s *state, cmd command) error {
+	currentUser, err := s.Db.GetUser(context.Background(), s.Cfg.CurrentUserName)
+	if err != nil {
+		log.Fatalln("Invalid current user")
+	}
+
+	following, err := s.Db.GetFeedFollowsForUser(context.Background(), currentUser.ID)
+	if err != nil {
+		log.Fatalf("Could not retrieve follow list for %s\n", currentUser.Name)
+	}
+
+	fmt.Printf("%s is following these feeds:\n", currentUser.Name)
+	for _, feed := range following {
+		fmt.Printf("%s | %s\n", feed.FeedName, feed.UserName)
+	}
+
 	return nil
 }
