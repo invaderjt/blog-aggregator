@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,7 +20,7 @@ func initialize() *state {
 	s := &state{}
 	cfg, err := config.ReadConfig()
 	if err != nil {
-		fmt.Println("Could not read config file")
+		log.Fatalln("Could not read config file")
 	}
 	s.Cfg = &cfg
 	return s
@@ -40,6 +42,7 @@ func updateState(s *state, db *sql.DB) {
 	cmds.register("follow", middlewareLoggedIn(handlerFollow))
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	input := os.Args
 	if len(input) < 2 {
@@ -282,6 +285,34 @@ func handlerUnfollow(s *state, cmd command, currentUser database.User) error {
 	return nil
 }
 
+func handlerBrowse(s *state, cmd command, currentUser database.User) error {
+	limit := 2
+	if len(cmd.Args) > 0 {
+		if l, err := strconv.Atoi(cmd.Args[0]); err == nil {
+			limit = l
+		}
+	}
+
+	params := database.GetPostsForUserParams{
+		UserID: currentUser.ID,
+		Limit:  int32(limit),
+	}
+	posts, err := s.Db.GetPostsForUser(context.Background(), params)
+	if err != nil {
+		log.Fatalf("Error retrieving posts: %v\n", err)
+	}
+
+	fmt.Printf("------------- %v newest posts -------------\n", limit)
+	for _, post := range posts {
+		fmt.Printf("Title: %s\n", post.Title.String)
+		fmt.Printf("Posted: %v\n", post.PublishedAt.Time.String())
+		fmt.Println(post.Description.String)
+		fmt.Println(post.Url)
+		fmt.Println("")
+	}
+	return nil
+}
+
 func scrapeFeeds(s *state) error {
 	nextFeed, err := s.Db.GetNextFeedToFetch(context.Background())
 	if err != nil {
@@ -305,7 +336,25 @@ func scrapeFeeds(s *state) error {
 	}
 
 	for _, item := range data.Channel.Item {
-		fmt.Println(item.Title)
+
+		params := database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       sql.NullString{String: item.Title, Valid: item.Title != ""},
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: item.Description != ""},
+			PublishedAt: parseTime(item.PubDate),
+			FeedID:      nextFeed.ID,
+		}
+		_, err := s.Db.CreatePost(context.Background(), params)
+		if err != nil {
+			if strings.Contains(err.Error(), "duplicate") {
+				continue
+			}
+			log.Printf("Could not save post: %v\n", err)
+		}
+
 	}
 
 	return nil
@@ -325,7 +374,28 @@ func handlerAgg(s *state, cmd command) error {
 
 	ticker := time.NewTicker(interval)
 	for ; ; <-ticker.C {
-		fmt.Println("--------------------Refreshed--------------------")
 		scrapeFeeds(s)
 	}
+}
+
+func parseTime(dateTime string) sql.NullTime {
+	formats := []string{
+		time.RFC1123Z,
+		time.RFC1123,
+		time.RFC3339,
+		time.RFC822,
+		time.RFC822Z,
+		time.RFC850,
+	}
+
+	for _, format := range formats {
+		t, err := time.Parse(format, dateTime)
+		if err == nil {
+			return sql.NullTime{
+				Time:  t,
+				Valid: true,
+			}
+		}
+	}
+	return sql.NullTime{}
 }
